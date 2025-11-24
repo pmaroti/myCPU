@@ -1,0 +1,9 @@
+version: "3.5"
+services:
+  gowin_toolchain:
+    image: gowin-devkit
+    volumes:
+      - ./:/app/verilog:rw
+    working_dir: /app/verilog
+#    command: make
+    command: sleep 5000000

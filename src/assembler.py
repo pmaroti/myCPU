@@ -8,12 +8,12 @@ import os
 # -----------------------------------------
 OP = {
     "SET": 0x0,
-    "LDA": 0x1,
-    "STA": 0x2,
+    "LD":  0x1,
+    "ST":  0x2,
     "AND": 0x3,
     "ADD": 0x4,
     "NOT": 0x5,
-    "JPZ": 0x6,
+    "JP": 0x6,
     "CHG": 0x7,
 }
 
@@ -63,17 +63,42 @@ def assemble_line(line, labels, pc):
     # -------------------------
     if instr == "SET":
         regname = parts[1].upper()
-        imm = int(parts[2], 0)
+        imm_token = parts[2]
+
+        want_high = False
+
+        # high/low suffix
+        if len(parts) == 4:
+            if parts[3].upper() == "H":
+                want_high = True
+            elif parts[3].upper() == "L":
+                want_high = False
+            else:
+                raise ValueError(f"Invalid SET suffix: {parts[3]}")
+
+        # number literal? 0x?? or decimal?
+        if re.fullmatch(r"0x[0-9A-Fa-f]+", imm_token) or imm_token.isdigit():
+            imm = int(imm_token, 0)
+            if want_high:
+                imm = (imm >> 8) & 0xFF
+            else:
+                imm = imm & 0xFF
+        else:
+            # it's a label – second pass will fix it
+            imm = ("LABEL", imm_token, want_high)
+
         opcode = (REG[regname] << 4) | OP["SET"]
-        return [opcode, imm & 0xFF]
+        return [opcode, imm]
 
     # -------------------------
     # JPZ label   → 1 byte
     # address loaded separately into JUMPL/JUMPH
     # -------------------------
-    if instr == "JPZ":
-        opcode = OP["JPZ"]
-        return [opcode | (0 << 4)]
+    if instr == "JP":
+        bitpos = int(parts[1], 0) & 0x07
+        value = int(parts[2], 0) & 0x1
+        opcode = OP["JP"]
+        return [opcode | (value << 7) | (bitpos << 4)]
 
     # -------------------------
     # One-byte register operations:
@@ -108,6 +133,7 @@ def assemble(source):
         if line.endswith(":"):
             lbl = line[:-1]
             labels[lbl] = pc
+            intermediate.append([])
             continue
 
         result = assemble_line(line, labels, pc)
@@ -120,20 +146,36 @@ def assemble(source):
     # =================================
     final = []
     pc = 0
+    print("-------------------------------------")
+
+    lcntr = 0
 
     for inst in intermediate:
+        print(f"{pc:04X}: ", end="");
+        bcntr = 0
         for item in inst:
             if isinstance(item, tuple) and item[0] == "LABEL":
                 label = item[1]
                 if label not in labels:
                     raise ValueError(f"Undefined label: {label}")
                 addr = labels[label]
-                final.append(addr & 0xFF)        # low byte
-                final.append((addr >> 8) & 0xFF) # high byte
-                pc += 2
+                if (item[2]):
+                    v = (addr >> 8) & 0xFF
+                else:
+                    v = addr & 0xFF
+                print(f"{v:02X} ", end="")
+                final.append(v)        # low byte
+                pc += 1
+                bcntr += 1
             else:
+                print(f"{item:02X} ", end="")
                 final.append(item)
                 pc += 1
+                bcntr += 1
+        if (bcntr > 0): 
+            print(" " * (10 - bcntr * 3), end="")
+        print(lines[lcntr].strip())
+        lcntr = lcntr+1
 
     return final 
 
@@ -150,9 +192,12 @@ if __name__ == "__main__":
 
     machine = assemble(src)
 
-    print("Assembled bytes:")
-    for i, b in enumerate(machine):
-        print(f"{i:04X}: {b:02X}")
+    #print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    #print(machine)
+
+    #print("Assembled bytes:")
+    #for i, b in enumerate(machine):
+    #    print(f"{i:04X}: {b:02X}")
     # Write hex output
     out = os.path.splitext(sys.argv[1])[0] + ".hex"
 

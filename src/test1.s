@@ -1,23 +1,15 @@
-; Load immediate 0x42 into A
-SET A, 0x42
+        SET POINTERL, 0x00
+        SET POINTERH, 0x20
 
-; Write A to memory[pointer]
-STA A
+        SET JUMPH, back, H
+        SET JUMPL, back, L
 
-; Read back into B
-LDA B
+        SET B, 0x01
+        SET A, 0x00
 
-; Add B to A
-ADD B
-
-; If zero → jump to zeroHandler
-JPZ zeroHandler
-
-; Not A
-NOT A
-
-; Swap A with B
-CHG B
-
-zeroHandler:
-SET A, 0x00
+back: 
+        ST  A
+        ADD B
+        AND A
+        SET STATUSL, 0x00
+        JP  0, 0

@@ -120,12 +120,12 @@ parameter WRITE = 1'b1;
 // ============================================================================
 
 parameter INSTR_SET  = 3'h0;   // SET A = (next byte)
-parameter INSTR_LDA  = 3'h1;   // LDA: reg[DI[7:4]] = mem[pointer]
-parameter INSTR_STA  = 3'h2;   // STA: mem[pointer] = reg[DI[7:4]]
+parameter INSTR_LD   = 3'h1;   // LDA: reg[DI[7:4]] = mem[pointer]
+parameter INSTR_ST   = 3'h2;   // STA: mem[pointer] = reg[DI[7:4]]
 parameter INSTR_AND  = 3'h3;   // A = A & R
 parameter INSTR_ADD  = 3'h4;   // A = A + R (Z,C flags)
 parameter INSTR_NOT  = 3'h5;   // R = ~R
-parameter INSTR_JPZ  = 3'h6;   // if Z=1 then jump to {JUMPH,JUMPL}
+parameter INSTR_JP   = 3'h6;   // if Z=1 then jump to {JUMPH,JUMPL}
 parameter INSTR_CHG  = 3'h7;   // swap A ↔ R
 
 integer i;
@@ -213,7 +213,7 @@ always @(posedge CLK) begin
                 // ---------------------------------------------------------------------
                 // LDA — Load register from memory at pointer address
                 // ---------------------------------------------------------------------
-                INSTR_LDA: begin
+                INSTR_LD: begin
                     selectedReg <= DI[7:4];                // which register to load
                     AB <= {pregs[regPOINTERH], pregs[regPOINTERL]};
                     RW <= READ;
@@ -223,7 +223,7 @@ always @(posedge CLK) begin
                 // ---------------------------------------------------------------------
                 // STA — Store register into memory at pointer address
                 // ---------------------------------------------------------------------
-                INSTR_STA: begin
+                INSTR_ST: begin
                     AB <= {pregs[regPOINTERH], pregs[regPOINTERL]};
                     RW <= WRITE;
                     DO <= pregs[DI[7:4]];                  // write selected register
@@ -258,19 +258,23 @@ always @(posedge CLK) begin
                 end
 
                 // ---------------------------------------------------------------------
-                // NOT — reg[R] = ~reg[R]
+                // NOT — reg[R] = ~reg[R], update Z flag
                 // ---------------------------------------------------------------------
                 INSTR_NOT: begin
-                    pregs[DI[7:4]] <= ~pregs[DI[7:4]];
+                    sum9[7:0] = ~pregs[DI[7:4]];
+                    pregs[DI[7:4]] <= sum9[7:0];
+                    pregs[regSTATUSL][statusRegZ] <= (sum9[7:0] == 8'h00);
                     {pregs[regPCH], pregs[regPCL]} <= 
                         {pregs[regPCH], pregs[regPCL]} + 16'd1;
                     phase <= OP_FETCH1;
                 end
-
+ 
+                // ------ ---------------------------------------------------------------
+                // JPZ — Jump if status register bit is set/not set
+                //    vbbb 0110 if status register bbb bit is v then branch
                 // ---------------------------------------------------------------------
-                // JPZ — Jump if Zero flag set
-                // ---------------------------------------------------------------------
-                INSTR_JPZ: begin
+                INSTR_JP : begin
+                    /*
                     if (pregs[regSTATUSL][statusRegZ]) begin
                         pregs[regPCL] <= pregs[regJUMPL];
                         pregs[regPCH] <= pregs[regJUMPH];
@@ -280,6 +284,17 @@ always @(posedge CLK) begin
                             {pregs[regPCH], pregs[regPCL]} + 16'd1;
                     end
                     phase <= OP_FETCH1;
+                    */
+                    if (pregs[regSTATUSL][DI[6:4]] == DI[7]) begin
+                        pregs[regPCL] <= pregs[regJUMPL];
+                        pregs[regPCH] <= pregs[regJUMPH];
+                    end
+                    else begin
+                        {pregs[regPCH], pregs[regPCL]} <= 
+                            {pregs[regPCH], pregs[regPCL]} + 16'd1;
+                    end
+                    phase <= OP_FETCH1;                    
+                    
                 end
 
                 // ---------------------------------------------------------------------

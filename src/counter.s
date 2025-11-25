@@ -1,13 +1,15 @@
-SET POINTERL, 0x00
-SET POINTERH, 0x20
+        SET POINTERL, 0x00
+        SET POINTERH, 0x20
 
-SET JUMPH, 0x00
-SET JUMPL, 0x0C
+        SET JUMPH, back, H
+        SET JUMPL, back, L
 
-SET B, 0x01
-SET A, 0x00
+        SET B, 0x01
+        SET A, 0x00
 
-STA A
-ADD B
-SET STATUSL,0x00
-JPZ 
+back: 
+        ST  A
+        ADD B
+        AND A
+        SET STATUSL, 0x00
+        JP  0, 0
